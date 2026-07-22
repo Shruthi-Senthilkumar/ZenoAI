@@ -8,10 +8,12 @@ def _reset_stub_db():
     db._ACADEMIC_DONE_TODAY.clear()
     db._CAREER_ACTIVE_TODAY.clear()
     db._STREAK_COUNT.clear()
+    db._LAST_INCREMENTED_DATE.clear()
     yield
     db._ACADEMIC_DONE_TODAY.clear()
     db._CAREER_ACTIVE_TODAY.clear()
     db._STREAK_COUNT.clear()
+    db._LAST_INCREMENTED_DATE.clear()
 
 
 def test_increments_when_both_conditions_met():
@@ -65,14 +67,36 @@ def test_unknown_student_defaults_to_false_gates_and_no_increment():
     assert db.get_streak_count("never-seen-student") == 0
 
 
-def test_is_deterministic_across_repeated_calls_with_same_state():
+def test_is_idempotent_across_repeated_calls_the_same_day():
+    # item 3 regression: three consecutive calls used to take a student's
+    # streak from 4 to 7 (double/triple counting) because there was no
+    # per-day guard. The client optimistically increments and reconciles
+    # against this value on every sync, so repeated same-day calls are the
+    # normal path, not an edge case — only the first should count.
     db._ACADEMIC_DONE_TODAY["s5"] = True
     db._CAREER_ACTIVE_TODAY["s5"] = True
-    db._STREAK_COUNT["s5"] = 0
+    db._STREAK_COUNT["s5"] = 4
 
     first = check_streak_increment("s5")
     second = check_streak_increment("s5")
+    third = check_streak_increment("s5")
 
     assert first is True
-    assert second is True
-    assert db.get_streak_count("s5") == 2  # each call is a distinct day's check in this stub
+    assert second is False
+    assert third is False
+    assert db.get_streak_count("s5") == 5  # incremented exactly once, not three times
+
+
+def test_no_op_guard_does_not_re_evaluate_gates_once_incremented_today():
+    db._ACADEMIC_DONE_TODAY["s6"] = True
+    db._CAREER_ACTIVE_TODAY["s6"] = True
+    db._STREAK_COUNT["s6"] = 0
+
+    assert check_streak_increment("s6") is True
+
+    # even if a gate flips off after the fact, the already-incremented
+    # no-op guard means the function stays a no-op today, not a rollback
+    db._ACADEMIC_DONE_TODAY["s6"] = False
+
+    assert check_streak_increment("s6") is False
+    assert db.get_streak_count("s6") == 1
