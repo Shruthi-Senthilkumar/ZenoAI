@@ -5,6 +5,12 @@ Career Readiness are computed separately per goal type and never
 blended into a single number (PRD §7) — `compute_readiness` takes
 `goal_type` as a parameter precisely so callers can never average them.
 
+Confidence graduates in two steps by evidence volume: "low" below
+MIN_EVIDENCE, "medium" up to HIGH_EVIDENCE, "high" at or above it
+(item 9 — the frontend store's ReadinessState types confidence as
+"low"|"medium"|"high", so the backend needs a real third tier, not
+just a wider type annotation).
+
 Subhiksha's DB layer isn't live yet, so `db.get_evidence_levels()` and
 `db.get_skill_weights()` are stubbed with hardcoded fixture dicts here
 so the formula is provably correct against known inputs.
@@ -17,13 +23,14 @@ from pydantic import BaseModel
 EVIDENCE_CREDIT = {"none": 0.0, "practiced": 0.4, "applied": 0.7, "shipped": 1.0}
 
 MIN_EVIDENCE = 3  # minimum number of scored skills before confidence graduates past "low"
+HIGH_EVIDENCE = 6  # minimum number of scored skills before confidence graduates to "high"
 
 GoalType = Literal["academic", "career"]
 
 
 class ReadinessResult(BaseModel):
     score: float
-    confidence: Literal["low", "medium"]
+    confidence: Literal["low", "medium", "high"]
 
 
 class _StubDB:
@@ -84,5 +91,11 @@ def compute_readiness(student_id: str, goal_type: GoalType) -> ReadinessResult:
     denominator = sum(weights.values())
     score = numerator / denominator if denominator else 0
 
-    confidence = "low" if total_evidence_volume(evidence) < MIN_EVIDENCE else "medium"
+    volume = total_evidence_volume(evidence)
+    if volume < MIN_EVIDENCE:
+        confidence = "low"
+    elif volume < HIGH_EVIDENCE:
+        confidence = "medium"
+    else:
+        confidence = "high"
     return ReadinessResult(score=score, confidence=confidence)

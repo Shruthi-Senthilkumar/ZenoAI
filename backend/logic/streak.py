@@ -7,10 +7,19 @@ Thaariha's client optimistically predicts and reconciles against, so
 the check must be deterministic and cause no side effect unless both
 gates pass.
 
+Idempotent per day: the client optimistically increments and
+reconciles against this value on every sync, so a repeated
+check_streak_increment() call on a day that already incremented is
+the normal path, not an edge case — it must be a no-op, not a second
+increment. The stub records the last date a student's streak actually
+incremented and short-circuits on any later call the same day.
+
 Subhiksha's DB isn't live yet, so today's-activity reads and the
 streak counter are stubbed with an in-memory _StubDB — swap-in-ready
 for a real DB later, same pattern as prior phases.
 """
+
+from datetime import date
 
 
 class _StubDB:
@@ -21,6 +30,7 @@ class _StubDB:
         self._CAREER_ACTIVE_TODAY: dict[str, bool] = {"student-1": True}
         self._STREAK_COUNT: dict[str, int] = {"student-1": 4}
         self._HOURS_SINCE_LAST_QUALIFYING_ACTIVITY: dict[str, float] = {"student-1": 22.0}
+        self._LAST_INCREMENTED_DATE: dict[str, date] = {}
 
     def today_academic_task_completed(self, student_id: str) -> bool:
         return self._ACADEMIC_DONE_TODAY.get(student_id, False)
@@ -28,11 +38,22 @@ class _StubDB:
     def today_github_or_leetcode_activity(self, student_id: str) -> bool:
         return self._CAREER_ACTIVE_TODAY.get(student_id, False)
 
+    def last_incremented_date(self, student_id: str) -> date | None:
+        return self._LAST_INCREMENTED_DATE.get(student_id)
+
     def increment_streak(self, student_id: str) -> None:
         self._STREAK_COUNT[student_id] = self._STREAK_COUNT.get(student_id, 0) + 1
+        self._LAST_INCREMENTED_DATE[student_id] = date.today()
 
     def get_streak_count(self, student_id: str) -> int:
         return self._STREAK_COUNT.get(student_id, 0)
+
+    def mark_academic_task_completed_today(self, student_id: str) -> None:
+        """Completing today's academic Task Card satisfies the academic half
+        of the dual gate — called from tasks.py's complete_task(), not a
+        direct dict write, so streak.py stays the single owner of this state.
+        """
+        self._ACADEMIC_DONE_TODAY[student_id] = True
 
     def hours_since_last_qualifying_activity(self, student_id: str) -> float:
         """Hours since the student last logged a streak-qualifying (academic or career) action.
@@ -47,6 +68,9 @@ db = _StubDB()
 
 
 def check_streak_increment(student_id: str) -> bool:
+    if db.last_incremented_date(student_id) == date.today():
+        return False  # already incremented today — no-op, not a second increment
+
     academic_done = db.today_academic_task_completed(student_id)
     career_active = db.today_github_or_leetcode_activity(student_id)
     if academic_done and career_active:

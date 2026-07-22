@@ -9,7 +9,16 @@ career skills (DSA practice, git/GitHub workflow, resume prep).
 student's evidence — LMS scores, GitHub/LeetCode history, and intake
 answers (Backend Spec §11, PRD §7) — so a student who already knows a
 topic never gets it scheduled into their roadmap.
+
+`NODE_GOAL_TYPE` is the single source of truth for whether a node is
+an academic topic or a career skill. roadmap.py used to keep its own
+duplicate `CAREER_NODES` set for this — that let the two definitions
+drift silently. Classification lives here, next to the nodes it
+classifies, so a new PREREQS entry without a matching NODE_GOAL_TYPE
+entry fails fast at import time instead of drifting unnoticed.
 """
+
+from typing import Literal
 
 import networkx as nx
 
@@ -51,6 +60,27 @@ PREREQS: dict[str, list[str]] = {
     "resume-building": ["git-github"],
     "mock-interviews": ["leetcode-medium", "system-design-basics", "resume-building"],
 }
+
+GoalType = Literal["academic", "career"]
+
+_CAREER_NODE_NAMES = {
+    "git-github",
+    "leetcode-easy",
+    "leetcode-medium",
+    "system-design-basics",
+    "resume-building",
+    "mock-interviews",
+}
+
+NODE_GOAL_TYPE: dict[str, GoalType] = {
+    node: ("career" if node in _CAREER_NODE_NAMES else "academic") for node in PREREQS
+}
+
+assert set(NODE_GOAL_TYPE) == set(PREREQS), "NODE_GOAL_TYPE and PREREQS have drifted apart"
+
+
+def goal_type_of(node: str) -> GoalType:
+    return NODE_GOAL_TYPE.get(node, "academic")
 
 
 def build_dag() -> nx.DiGraph:
