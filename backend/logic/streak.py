@@ -48,6 +48,13 @@ class _StubDB:
     def get_streak_count(self, student_id: str) -> int:
         return self._STREAK_COUNT.get(student_id, 0)
 
+    def mark_academic_task_completed_today(self, student_id: str) -> None:
+        """Completing today's academic Task Card satisfies the academic half
+        of the dual gate — called from tasks.py's complete_task(), not a
+        direct dict write, so streak.py stays the single owner of this state.
+        """
+        self._ACADEMIC_DONE_TODAY[student_id] = True
+
     def hours_since_last_qualifying_activity(self, student_id: str) -> float:
         """Hours since the student last logged a streak-qualifying (academic or career) action.
 

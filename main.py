@@ -4,8 +4,8 @@ Mounts every router in backend/routes/ onto a single FastAPI app so
 Thaariha's Next.js client (and `/docs`) has one process to talk to.
 Run with: uvicorn main:app --reload
 
-NOTE: `tasks` and `chat` routers are wired in here as they're built
-(consolidated fix items 6 and 7) — not present yet on this commit.
+NOTE: `chat` router is wired in here as it's built (consolidated fix
+item 7) — not present yet on this commit.
 """
 
 from fastapi import FastAPI
@@ -20,6 +20,7 @@ from backend.routes import (
     quiz,
     roadmap,
     struggle,
+    tasks,
 )
 
 app = FastAPI(title="ZenoAI Backend")
@@ -40,3 +41,4 @@ app.include_router(push.router)
 app.include_router(quiz.router)
 app.include_router(roadmap.router)
 app.include_router(struggle.router)
+app.include_router(tasks.router)
