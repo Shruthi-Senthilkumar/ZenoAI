@@ -20,6 +20,7 @@ class _StubDB:
         self._ACADEMIC_DONE_TODAY: dict[str, bool] = {"student-1": True}
         self._CAREER_ACTIVE_TODAY: dict[str, bool] = {"student-1": True}
         self._STREAK_COUNT: dict[str, int] = {"student-1": 4}
+        self._HOURS_SINCE_LAST_QUALIFYING_ACTIVITY: dict[str, float] = {"student-1": 22.0}
 
     def today_academic_task_completed(self, student_id: str) -> bool:
         return self._ACADEMIC_DONE_TODAY.get(student_id, False)
@@ -32,6 +33,14 @@ class _StubDB:
 
     def get_streak_count(self, student_id: str) -> int:
         return self._STREAK_COUNT.get(student_id, 0)
+
+    def hours_since_last_qualifying_activity(self, student_id: str) -> float:
+        """Hours since the student last logged a streak-qualifying (academic or career) action.
+
+        Used by the streak-at-risk notification trigger (§4.17) — kept here rather
+        than in notifications.py since it's genuinely part of the streak domain.
+        """
+        return self._HOURS_SINCE_LAST_QUALIFYING_ACTIVITY.get(student_id, 0.0)
 
 
 db = _StubDB()
