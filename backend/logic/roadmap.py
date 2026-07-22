@@ -10,6 +10,25 @@ activity, LeetCode submissions, exam schedule) are stubbed with
 fixture data shaped like the Moodle-mirrored fields in PRD §3.4 —
 swap-in-ready for a real DB later, same pattern as Phase 1's
 readiness stub.
+
+Consolidated fix notes (see PR description for the full list):
+- forward_plan() now orders career gaps topologically first, using
+  role weight only as a tiebreaker among nodes with no unresolved
+  DAG dependency between them — it used to sort by weight alone,
+  which could schedule a node before its own prerequisite.
+- backward_plan() now schedules genuinely backward from the exam
+  date (walking from exam_date - 1 day toward today) instead of
+  forward from today with a clamped step, which used to let items
+  spill past the exam with a negative day count in `reason`. If more
+  gap nodes exist than days remain, the list is truncated to what
+  fits rather than overflowing.
+- generate_roadmap() bounds the total roadmap to ROADMAP_HORIZON_DAYS
+  instead of returning the entire remaining gap graph.
+- A student with no exam scheduled now gets a forward-planned
+  academic track (pure prerequisite order, no role weighting) instead
+  of an empty one.
+- Goal-type classification (academic vs. career) now lives in
+  dag.py's NODE_GOAL_TYPE, not a second hardcoded set here.
 """
 
 from datetime import date, timedelta
@@ -17,20 +36,15 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from backend.logic.dag import build_dag, first_unsatisfied_node
+from backend.logic.dag import GoalType, build_dag, first_unsatisfied_node, goal_type_of
 
 ACADEMIC_MASTERY_THRESHOLD = 75  # avg_score at/above this counts the node as satisfied
 
-# Nodes considered career skills rather than academic topics — used to split
-# a single DAG gap-walk into the two planning tracks (§6: "same DAG walk").
-CAREER_NODES = {
-    "git-github",
-    "leetcode-easy",
-    "leetcode-medium",
-    "system-design-basics",
-    "resume-building",
-    "mock-interviews",
-}
+# PRD §4.8 / UI/UX Spec §4.2: 1-3 items/day, a bounded horizon — not a dump
+# of every remaining gap node. Two weeks is a judgment call for hackathon
+# scope; each track schedules at most one item/day, so a 14-day horizon
+# caps the merged roadmap at a maximum of 2 items/day, well within 1-3.
+ROADMAP_HORIZON_DAYS = 14
 
 ROLE_SKILL_WEIGHTS: dict[str, dict[str, float]] = {
     "SDE": {
@@ -180,26 +194,60 @@ def compute_satisfied_nodes(
 
 
 def _split_gap_by_type(gap_nodes: list[str]) -> tuple[list[str], list[str]]:
-    academic = [n for n in gap_nodes if n not in CAREER_NODES]
-    career = [n for n in gap_nodes if n in CAREER_NODES]
+    academic = [n for n in gap_nodes if goal_type_of(n) != "career"]
+    career = [n for n in gap_nodes if goal_type_of(n) == "career"]
     return academic, career
 
 
+def _priority_topological_order(gap_nodes: list[str], weights: dict[str, float]) -> list[str]:
+    """Order gap_nodes so no node ever precedes its own DAG ancestors, using
+    descending weight only to break ties among nodes with no dependency
+    relationship between them (Kahn's algorithm with a weighted-priority
+    ready queue instead of arbitrary/FIFO order).
+    """
+    g = build_dag()
+    sub = g.subgraph(gap_nodes)
+    in_degree = {n: sub.in_degree(n) for n in sub.nodes}
+    ready = [n for n in sub.nodes if in_degree[n] == 0]
+
+    ordered: list[str] = []
+    while ready:
+        ready.sort(key=lambda n: (-weights.get(n, 0), n))
+        node = ready.pop(0)
+        ordered.append(node)
+        for succ in sub.successors(node):
+            in_degree[succ] -= 1
+            if in_degree[succ] == 0:
+                ready.append(succ)
+
+    return ordered
+
+
 def backward_plan(gap_nodes: list[str], exam_dates: list[str]) -> list[RoadmapDay]:
-    """Academic: schedule gap nodes working backward from the nearest exam date."""
+    """Academic: schedule gap nodes working backward from the nearest exam date.
+
+    Walks backward from (exam_date - 1 day) toward today, one node per day,
+    in the gap's existing prerequisite-first order. If there are more gap
+    nodes than days remain before the exam, the list is truncated to the
+    earliest (most foundational) nodes that fit — RoadmapDay.reason can
+    never show a negative or zero day count.
+    """
     if not gap_nodes or not exam_dates:
         return []
 
     nearest_exam = min(date.fromisoformat(d) for d in exam_dates)
     today = date.today()
-    days_until_exam = max((nearest_exam - today).days, 1)
+    days_until_exam = (nearest_exam - today).days
 
-    n = len(gap_nodes)
-    step = max(days_until_exam // n, 1)
+    if days_until_exam <= 0:
+        return []  # exam already happened / is today — nothing to backward-plan
+
+    available_days = min(days_until_exam, len(gap_nodes))
+    scheduled_nodes = gap_nodes[:available_days]
 
     days = []
-    for i, node in enumerate(gap_nodes):
-        scheduled = today + timedelta(days=i * step)
+    for offset, node in enumerate(reversed(scheduled_nodes), start=1):
+        scheduled = nearest_exam - timedelta(days=offset)
         remaining = (nearest_exam - scheduled).days
         days.append(
             RoadmapDay(
@@ -209,16 +257,28 @@ def backward_plan(gap_nodes: list[str], exam_dates: list[str]) -> list[RoadmapDa
                 reason=f"exam in {remaining} days",
             )
         )
+    days.reverse()  # restore chronological (prerequisite-first) order
     return days
 
 
-def forward_plan(gap_nodes: list[str], role_weights: dict[str, float], role: str = "career") -> list[RoadmapDay]:
-    """Career: schedule gap nodes forward from today, prioritized by role-skill weight."""
+def forward_plan(
+    gap_nodes: list[str],
+    role_weights: dict[str, float],
+    role: str = "career",
+    day_type: GoalType = "career",
+) -> list[RoadmapDay]:
+    """Schedule gap nodes forward from today, in DAG-valid topological order
+    with role weight as a tiebreaker — weight never overrides a prerequisite
+    relationship. Used for career items (role-weighted) and, with an empty
+    role_weights dict, as the academic fallback when a student has no exam
+    scheduled yet (pure prerequisite order, no weighting).
+    """
     if not gap_nodes:
         return []
 
-    ordered = sorted(gap_nodes, key=lambda n: -role_weights.get(n, 0))
+    ordered = _priority_topological_order(gap_nodes, role_weights)
     today = date.today()
+    reason = f"gap vs {role} role" if day_type == "career" else "no exam scheduled yet — building prerequisites"
 
     days = []
     for i, node in enumerate(ordered):
@@ -226,9 +286,9 @@ def forward_plan(gap_nodes: list[str], role_weights: dict[str, float], role: str
         days.append(
             RoadmapDay(
                 day=scheduled.isoformat(),
-                type="career",
+                type=day_type,
                 topic=node,
-                reason=f"gap vs {role} role",
+                reason=reason,
             )
         )
     return days
@@ -251,10 +311,19 @@ def generate_roadmap(student_id: str) -> list[RoadmapDay]:
     academic_gap, career_gap = _split_gap_by_type(gap_nodes)
 
     exam_dates = [e["exam_date"] for e in db.get_exam_schedule(student_id)]
-    academic_days = backward_plan(academic_gap, exam_dates)
+    if exam_dates:
+        academic_days = backward_plan(academic_gap, exam_dates)
+    else:
+        # No exam scheduled yet — still give a fresh student an academic
+        # track, forward-planned in pure prerequisite order (no exam to
+        # weight against yet).
+        academic_days = forward_plan(academic_gap, role_weights={}, day_type="academic")
 
     target_role = db.get_target_role(student_id)
     role_weights = compute_skill_weights(target_role)
     career_days = forward_plan(career_gap, role_weights, role=target_role)
 
-    return merge_by_day(academic_days, career_days)
+    merged = merge_by_day(academic_days, career_days)
+
+    horizon_end = (date.today() + timedelta(days=ROADMAP_HORIZON_DAYS)).isoformat()
+    return [d for d in merged if d.day < horizon_end]
