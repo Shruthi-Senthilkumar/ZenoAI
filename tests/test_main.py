@@ -16,6 +16,7 @@ EXPECTED_PATHS = {
     "/struggle/offers/{offer_id}/respond",
     "/tasks/today",
     "/tasks/{task_id}/complete",
+    "/chat/message",
 }
 
 
