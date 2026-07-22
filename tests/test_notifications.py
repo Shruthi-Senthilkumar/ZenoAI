@@ -75,7 +75,7 @@ def test_reminder_reuses_struggle_detector_career_signal_without_duplicating_log
 
     assert banner is not None
     assert banner.type == "reminder"
-    assert "2 days" in banner.message  # same reason text struggle-detector generates
+    assert "3 days" in banner.message  # same reason text struggle-detector generates, reflecting the real gap
 
 
 def test_streak_at_risk_does_not_fire_when_streak_is_zero():
