@@ -10,9 +10,15 @@ completed-module trigger — return None rather than showing a partial
 bullet. Unlike quiz_gen's empty-questions sentinel, a resume bullet
 has no meaningful "empty but valid" shape, so the fallback signal here
 is genuinely Optional rather than a same-type placeholder.
+
+On a genuine success (never on a deferred failure), also flips
+notifications.py's resume-bullet-ready flag (PRD §4.17) — see
+docs/BACKEND_SPEC_ADDENDUM.md §14 for why that flag previously never
+fired.
 """
 
 from backend.llm.validation import LLMValidationFailed, call_and_validate
+from backend.logic.notifications import db as notifications_db
 from backend.schemas.resume import ResumeBulletResponse
 
 RESUME_SYSTEM_PROMPT = """You write concise, resume-ready bullet points for students,
@@ -29,10 +35,16 @@ Respond with ONLY raw JSON, no markdown fences, no prose, matching exactly:
 
 def generate_resume_bullet(student_id: str, completed_topic: str, evidence_link: str) -> ResumeBulletResponse | None:
     try:
-        return call_and_validate(
+        result = call_and_validate(
             RESUME_SYSTEM_PROMPT,
             f"Completed topic: {completed_topic}\nEvidence link: {evidence_link}\nWrite one resume bullet.",
             ResumeBulletResponse,
         )
     except LLMValidationFailed:
         return None  # §4.3: defer to next completed-module trigger, no partial bullet shown
+
+    # Item 2 (master prompt): only a successful generation should ever make
+    # the resume-bullet-ready banner (PRD §4.17) eligible to fire — a
+    # deferred/failed attempt must not.
+    notifications_db.mark_resume_bullet_ready(student_id)
+    return result

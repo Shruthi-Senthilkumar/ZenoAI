@@ -26,6 +26,15 @@ class _StubDB:
     def has_unseen_resume_bullet(self, student_id: str) -> bool:
         return self._RESUME_BULLET_READY.get(student_id, False)
 
+    def mark_resume_bullet_ready(self, student_id: str) -> None:
+        """Set by resume.py on successful generation (item 2, master prompt)."""
+        self._RESUME_BULLET_READY[student_id] = True
+
+    def clear_resume_bullet_ready(self, student_id: str) -> None:
+        """Cleared once the banner has actually been surfaced — 'unseen' stops
+        being true the moment the student has seen it."""
+        self._RESUME_BULLET_READY[student_id] = False
+
     def has_assignment_due_tomorrow(self, student_id: str) -> bool:
         return self._ASSIGNMENT_DUE_TOMORROW.get(student_id, False)
 
@@ -47,6 +56,7 @@ def _check_streak_at_risk(student_id: str) -> NotificationBanner | None:
 
 def _check_resume_bullet_ready(student_id: str) -> NotificationBanner | None:
     if db.has_unseen_resume_bullet(student_id):
+        db.clear_resume_bullet_ready(student_id)  # surfaced now -> no longer "unseen"
         return NotificationBanner(
             type="resume-bullet-ready",
             message="A new resume bullet is ready to review.",

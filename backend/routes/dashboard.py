@@ -1,4 +1,8 @@
-"""GET /dashboard/{student_id} (Backend Spec §11, PRD §4.13).
+"""GET /dashboard/{student_id} (docs/BACKEND_SPEC_ADDENDUM.md §13, PRD §4.13).
+
+Note: previously cited as "Backend Spec §11" — that's the readiness
+formula's section number, not a Dashboard section (none existed). See
+the addendum for the section this route actually belongs to.
 
 Wires Phase 1's compute_readiness() — academic and career, always
 computed separately and never blended — into the Dashboard's API
