@@ -1,4 +1,8 @@
-"""Outcome Feedback Loop stub (PRD §4.19).
+"""Outcome Feedback Loop (PRD §4.19; docs/BACKEND_SPEC_ADDENDUM.md §14).
+
+Assigned to Shruthi in the PRD's own Phase 4 table (§5) but never given a
+numbered section in the Backend Spec doc — see the addendum for the
+write-up this module was missing.
 
 Lightweight check-in after a resume bullet is generated: "Did this help
 in an interview?" Resume bullet generation and storage themselves are
