@@ -10,3 +10,6 @@ networkx==3.6.1
 # built), so a real send would have nothing valid to send to. See that
 # module's docstring for the full trade-off. pywebpush is intentionally NOT
 # a dependency here — add it when a real send is wired up.
+
+sqlmodel
+psycopg2-binary

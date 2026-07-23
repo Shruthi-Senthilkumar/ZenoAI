@@ -1,0 +1,16 @@
+from typing import Protocol
+
+class LMSConnector(Protocol):
+    def get_student_profile(self, student_id: str) -> dict: ...
+    def get_quiz_scores(self, student_id: str) -> list[dict]: ...
+    def get_assignments(self, student_id: str) -> list[dict]: ...
+    def get_programming_progress(self, student_id: str) -> list[dict]: ...
+    def get_exam_schedule(self, student_id: str) -> list[dict]: ...
+
+def get_connector() -> LMSConnector:
+    import os
+    if os.getenv("LMS_MODE") == "moodle":
+        from .lms_moodle import MoodleConnector
+        return MoodleConnector()
+    from .lms_mock import MockConnector
+    return MockConnector()
