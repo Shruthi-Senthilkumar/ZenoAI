@@ -220,3 +220,5 @@ __marimo__/
 # ZenoAI local data
 *.db
 *.sqlite3
+
+backend/fixtures/

@@ -130,8 +130,8 @@ export interface JobListing {
   id: string;
   title: string;
   company: string;
-  matchPct: number;
-  missingSkills: string[];
+  match_pct: number;
+  missing_skills: string[];
 }
 
 // LMS Integration Spec — six connector methods, frozen response shapes.
