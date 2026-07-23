@@ -5,6 +5,12 @@ from sqlmodel import Session
 from backend.database import engine, ResumeBullet
 from backend.logic.feedback import record_outcome_feedback
 from backend.schemas.feedback import OutcomeFeedback
+from backend.database import init_db
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _ensure_db_initialized():
+    init_db()
 
 
 def _make_bullet(bullet_id: str):
