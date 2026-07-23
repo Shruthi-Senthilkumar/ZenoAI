@@ -22,6 +22,11 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
+  // Same rationale as Today's page (PRD §11 Stage A is data-collection
+  // only, never suppresses the underlying signal) — dismissal has to be
+  // tracked client-side, current-session only.
+  const [dismissedOfferIds, setDismissedOfferIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [chat.messages.length, chat.pending]);
@@ -47,16 +52,25 @@ export default function ChatPage() {
   }
 
   function onRespondOffer(offerId: string, accepted: boolean) {
+    setDismissedOfferIds((prev) => new Set(prev).add(offerId));
     api
       .post(`/struggle/offers/${offerId}/respond`, { accepted, features: {} })
-      .finally(() => mutateOffers());
+      .catch(() => {
+        setDismissedOfferIds((prev) => {
+          const next = new Set(prev);
+          next.delete(offerId);
+          return next;
+        });
+      });
   }
+
+  const visibleOffers = (offersData?.offers ?? []).filter((o) => !dismissedOfferIds.has(o.offer_id));
 
   return (
     <section className="tab-panel active" id="tab-chat">
       <div className="section-label">Mentor AI Chat — same store as Today</div>
 
-      <StruggleOfferBanner offers={offersData?.offers ?? []} onRespond={onRespondOffer} />
+      <StruggleOfferBanner offers={visibleOffers} onRespond={onRespondOffer} />
 
       <div className="chat-shell">
         <div className="chat-log" ref={logRef}>

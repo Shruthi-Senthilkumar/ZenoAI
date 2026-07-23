@@ -30,6 +30,13 @@ export default function TodayPage() {
   const [activeQuizTask, setActiveQuizTask] = useState<TaskItem | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Stage A struggle-detection is intentionally data-collection-only (PRD
+  // §11) — responding to an offer logs ground truth but never suppresses
+  // the underlying signal, so the backend will keep returning the same
+  // offer on the next fetch. Dismissal is therefore a client-side,
+  // current-session concern, not something a re-fetch will ever reflect.
+  const [dismissedOfferIds, setDismissedOfferIds] = useState<Set<string>>(new Set());
+
   // Chat never issues its own /tasks fetch (Frontend Spec §5.4) — Today
   // owns the fetch, both screens read from the shared store.
   useEffect(() => {
@@ -64,9 +71,17 @@ export default function TodayPage() {
   }
 
   function onRespondOffer(offerId: string, accepted: boolean) {
+    setDismissedOfferIds((prev) => new Set(prev).add(offerId));
     api
       .post(`/struggle/offers/${offerId}/respond`, { accepted, features: {} })
-      .finally(() => mutateOffers());
+      .catch(() => {
+        setToast("Couldn't save that — try again.");
+        setDismissedOfferIds((prev) => {
+          const next = new Set(prev);
+          next.delete(offerId);
+          return next;
+        });
+      });
   }
 
   const days = roadmapData?.days ?? [];
@@ -81,9 +96,11 @@ export default function TodayPage() {
     ? (weekItems.filter((i) => i.goalType === "career" && i.status === "done").length / weekTotal) * 100
     : 0;
 
+  const visibleOffers = (offersData?.offers ?? []).filter((o) => !dismissedOfferIds.has(o.offer_id));
+
   return (
     <section className="tab-panel active" id="tab-today">
-      <StruggleOfferBanner offers={offersData?.offers ?? []} onRespond={onRespondOffer} />
+      <StruggleOfferBanner offers={visibleOffers} onRespond={onRespondOffer} />
 
       <div className="section-label">Merged task list — today only</div>
 

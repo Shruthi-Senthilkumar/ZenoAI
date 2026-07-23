@@ -3,6 +3,8 @@ uvicorn==0.51.0
 groq==1.5.0
 pydantic==2.13.4
 networkx==3.6.1
+httpx
+cryptography
 
 # send_push_notification() in backend/logic/push_subscriptions.py remains a
 # logging stub, not a real pywebpush call: no VAPID keys are provisioned and

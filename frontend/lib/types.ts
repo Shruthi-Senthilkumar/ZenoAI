@@ -134,6 +134,12 @@ export interface JobListing {
   missing_skills: string[];
 }
 
+// ---- GET /auth/github/status?student_id= (confirmed live, new) ----
+export interface GithubStatus {
+  connected: boolean;
+  github_username: string | null;
+}
+
 // LMS Integration Spec — six connector methods, frozen response shapes.
 export interface LmsStudentProfile {
   name: string;

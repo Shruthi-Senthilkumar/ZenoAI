@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useStudentStore } from "@/lib/store-provider";
-import { useIntakeProfile, useResumeBullets } from "@/lib/hooks";
+import { useIntakeProfile, useResumeBullets, useGithubStatus } from "@/lib/hooks";
 import { StateBlock } from "@/components/state/StateBlock";
 import { ResumeBulletRow } from "@/components/resume-card/ResumeBulletRow";
 
 // New page (item 5) — the natural home for what /intake collects (target
 // role, weekly hours) and what accumulates afterward (resume bullets),
-// plus a readiness tie-in. Two of its three sections have no live
-// backend to call yet:
+// plus a readiness tie-in. Two of its three original sections have no
+// live backend to call yet:
 //
 //  - Goal summary: backend/logic/intake.py only stores target role/weekly
 //    hours as free text inside its internal IntakeState.answers list —
@@ -25,9 +26,16 @@ import { ResumeBulletRow } from "@/components/resume-card/ResumeBulletRow";
 // Career readiness IS real — it's pulled from the shared store rather
 // than re-fetched, populated by whichever of Today/Dashboard loaded
 // first this session (see their setReadiness calls).
+//
+// GitHub connect (new): real OAuth flow, backend/routes/auth.py. Full
+// server-side redirect, not a fetch — the button is a plain <a>, GitHub's
+// authorize page needs a real top-level navigation, not an XHR.
 export default function GoalsPage() {
   const studentId = useStudentStore((s) => s.studentId);
   const readiness = useStudentStore((s) => s.readiness);
+  const searchParams = useSearchParams();
+  const githubParam = searchParams.get("github");
+
   const {
     data: profile,
     error: profileError,
@@ -40,10 +48,62 @@ export default function GoalsPage() {
     isLoading: bulletsLoading,
     mutate: mutateBullets,
   } = useResumeBullets(studentId);
+  const {
+    data: githubStatus,
+    isLoading: githubLoading,
+  } = useGithubStatus(studentId);
+
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  const authorizeUrl = `${apiBaseUrl}/auth/github/authorize?student_id=${studentId}`;
 
   return (
     <section className="tab-panel active" id="tab-goals">
       <div className="section-label">Goal &amp; resume progress</div>
+
+      {githubParam === "connected" && (
+        <div className="toast" style={{ position: "static", marginBottom: 16 }}>
+          GitHub connected — commit activity will feed your career readiness.
+        </div>
+      )}
+      {githubParam === "exchange_failed" && (
+        <div className="toast" style={{ position: "static", marginBottom: 16 }}>
+          GitHub connection failed — please try again.
+        </div>
+      )}
+      {githubParam === "state_mismatch" && (
+        <div className="toast" style={{ position: "static", marginBottom: 16 }}>
+          That connection link expired — please try again.
+        </div>
+      )}
+
+      <div className="panel career" style={{ marginBottom: 20 }}>
+        <div className="panel-head">
+          <h3>GitHub</h3>
+          <span className="chip-tag">career evidence</span>
+        </div>
+
+        {githubLoading ? (
+          <div className="skel skel-line w-60" style={{ height: 16 }} />
+        ) : githubStatus?.connected ? (
+          <>
+            <div className="gauge">
+              <b>Connected</b>
+            </div>
+            <div className="confidence">
+              {githubStatus.github_username ? `@${githubStatus.github_username}` : "Account linked"}
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="lms-muted" style={{ marginBottom: 10 }}>
+              Connect GitHub to feed real commit activity into your career readiness and struggle-detector signals.
+            </p>
+            <a href={authorizeUrl} className="task-btn" style={{ display: "inline-block" }}>
+              Connect GitHub
+            </a>
+          </>
+        )}
+      </div>
 
       <div className="panel career" style={{ marginBottom: 20 }}>
         <div className="panel-head">

@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { fetcher as rawFetcher } from "./api";
 import type {
   DashboardResponse,
+  GithubStatus,
   IntakeProfile,
   JobListing,
   LeetCodeProblem,
@@ -23,6 +24,7 @@ import type {
   StruggleOffersResponse,
   TodayResponse,
 } from "./types";
+
 
 function typedFetcher<T>(path: string): Promise<T> {
   return rawFetcher(path) as Promise<T>;
@@ -63,6 +65,13 @@ export function useNotifications(studentId: string) {
     studentId ? `/notifications?student_id=${studentId}` : null,
     typedFetcher<NotificationsResponse>,
     { refreshInterval: 60_000 }
+  );
+}
+
+export function useGithubStatus(studentId: string) {
+  return useSWR<GithubStatus>(
+    studentId ? `/auth/github/status?student_id=${studentId}` : null,
+    typedFetcher<GithubStatus>
   );
 }
 

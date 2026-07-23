@@ -19,6 +19,7 @@ class Student(SQLModel, table=True):
     target_role: str = Field(default="Software Engineer")
     weekly_hours: int = Field(default=15)
     github_username: Optional[str] = Field(default=None)
+    github_token_encrypted: Optional[str] = Field(default=None)
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
 
 # 2. Learning Profile Table

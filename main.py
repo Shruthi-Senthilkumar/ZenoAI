@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database import init_db
 from backend.routes import (
+    auth,
     chat,
     dashboard,
     feedback,
@@ -50,6 +51,7 @@ app.include_router(tasks.router)
 app.include_router(chat.router)
 app.include_router(leetcode.router)
 app.include_router(jobs.router)
+app.include_router(auth.router)
 
 
 async def github_poll_loop():
