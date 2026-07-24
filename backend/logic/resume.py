@@ -1,22 +1,27 @@
 """Resume Bullet generation (Backend Spec §3, §4.3; PRD §4.19, UI/UX Spec §8.9).
 
 Fires only on a verified module/project completion. Reuses Phase 1's
-call_and_validate — no separate GROQ client. Storage stays Subhiksha's
-(Integration Spec §4/§9) — this generates and returns, it never
-persists to a real table.
+call_and_validate — no separate GROQ client.
+
+On a genuine success (never on a deferred failure): persists a
+ResumeBullet row to the real DB (Subhiksha's Integration Spec §4/§9
+table — this previously only generated and returned, never wrote
+anything, which is why GET /resume/bullets had nothing to serve), and
+flips notifications.py's resume-bullet-ready flag (PRD §4.17) — see
+docs/BACKEND_SPEC_ADDENDUM.md §14 for why that flag previously never
+fired either.
 
 Fallback (§4.3): on LLMValidationFailed, defer generation to the next
 completed-module trigger — return None rather than showing a partial
 bullet. Unlike quiz_gen's empty-questions sentinel, a resume bullet
 has no meaningful "empty but valid" shape, so the fallback signal here
 is genuinely Optional rather than a same-type placeholder.
-
-On a genuine success (never on a deferred failure), also flips
-notifications.py's resume-bullet-ready flag (PRD §4.17) — see
-docs/BACKEND_SPEC_ADDENDUM.md §14 for why that flag previously never
-fired.
 """
+import uuid
 
+from sqlmodel import Session
+
+from backend.database import ResumeBullet, engine
 from backend.llm.validation import LLMValidationFailed, call_and_validate
 from backend.logic.notifications import db as notifications_db
 from backend.schemas.resume import ResumeBulletResponse
@@ -42,6 +47,17 @@ def generate_resume_bullet(student_id: str, completed_topic: str, evidence_link:
         )
     except LLMValidationFailed:
         return None  # §4.3: defer to next completed-module trigger, no partial bullet shown
+
+    with Session(engine) as session:
+        session.add(
+            ResumeBullet(
+                id=str(uuid.uuid4()),
+                student_id=student_id,
+                text=result.text,
+                evidence_link=result.evidence_link,
+            )
+        )
+        session.commit()
 
     # Item 2 (master prompt): only a successful generation should ever make
     # the resume-bullet-ready banner (PRD §4.17) eligible to fire — a

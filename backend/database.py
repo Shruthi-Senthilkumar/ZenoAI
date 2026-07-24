@@ -18,8 +18,12 @@ class Student(SQLModel, table=True):
     name: str
     target_role: str = Field(default="Software Engineer")
     weekly_hours: int = Field(default=15)
+    timeline_months: Optional[int] = Field(default=None)
     github_username: Optional[str] = Field(default=None)
     github_token_encrypted: Optional[str] = Field(default=None)
+    intake_completed_at: Optional[str] = Field(default=None)
+    education_level: Optional[str] = Field(default=None)
+    topic_levels_json: Optional[str] = Field(default=None)
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
 
 # 2. Learning Profile Table
@@ -123,9 +127,13 @@ def init_db():
 def create_or_update_student(
     student_id: str,
     name: str,
-    target_role: str = "Software Engineer",
-    weekly_hours: int = 15,
-    github_username: Optional[str] = None
+    target_role: Optional[str] = None,
+    weekly_hours: Optional[int] = None,
+    github_username: Optional[str] = None,
+    intake_completed_at: Optional[str] = None,
+    education_level: Optional[str] = None,
+    topic_levels_json: Optional[str] = None,
+    timeline_months: Optional[int] = None,
 ) -> Student:
     with Session(engine) as session:
         student = session.get(Student, student_id)
@@ -133,17 +141,44 @@ def create_or_update_student(
             student = Student(
                 id=student_id,
                 name=name,
-                target_role=target_role,
-                weekly_hours=weekly_hours,
-                github_username=github_username
+                target_role=target_role or "Software Engineer",
+                weekly_hours=weekly_hours if weekly_hours is not None else 15,
+                github_username=github_username,
+                intake_completed_at=intake_completed_at,
+                education_level=education_level,
+                topic_levels_json=topic_levels_json,
+                timeline_months=timeline_months,
             )
             session.add(student)
         else:
             student.name = name
-            student.target_role = target_role
-            student.weekly_hours = weekly_hours
+            # Only ever set when explicitly provided, never reset to a
+            # default — this was a real latent bug: every call to this
+            # helper used to unconditionally overwrite target_role/
+            # weekly_hours with their default-arg values (15,
+            # "Software Engineer"), so auth.py's GitHub OAuth callback
+            # (which calls this without either param) would silently
+            # wipe out real intake data the moment a student connected
+            # GitHub after already completing intake.
+            if target_role:
+                student.target_role = target_role
+            if weekly_hours is not None:
+                student.weekly_hours = weekly_hours
             if github_username:
                 student.github_username = github_username
+            # Same "only ever set, never clear" protection as above —
+            # other callers (e.g. GitHub OAuth) also call this helper
+            # without knowing about intake completion, and must not
+            # silently wipe real intake data just by updating an
+            # unrelated field.
+            if intake_completed_at:
+                student.intake_completed_at = intake_completed_at
+            if education_level:
+                student.education_level = education_level
+            if topic_levels_json:
+                student.topic_levels_json = topic_levels_json
+            if timeline_months is not None:
+                student.timeline_months = timeline_months
             session.add(student)
         session.commit()
         session.refresh(student)

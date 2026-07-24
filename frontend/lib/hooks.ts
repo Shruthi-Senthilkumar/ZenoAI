@@ -81,9 +81,21 @@ export function useGithubStatus(studentId: string) {
 // data. ----
 
 export function useIntakeProfile(studentId: string) {
-  return useSWR<IntakeProfile>(
+  // A 404 here means "hasn't completed intake yet" — a real, expected
+  // state (backend/routes/intake_profile.py 404s until
+  // intake_completed_at is set), not a fetch failure. Treat it as
+  // successful-but-empty (data: null) rather than an SWR error, so the
+  // page can tell "no goal set yet" apart from "the request broke."
+  return useSWR<IntakeProfile | null>(
     studentId ? `/intake/profile?student_id=${studentId}` : null,
-    typedFetcher<IntakeProfile>
+    async (path: string) => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? ""}${path}`, {
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
+      return res.json() as Promise<IntakeProfile>;
+    }
   );
 }
 

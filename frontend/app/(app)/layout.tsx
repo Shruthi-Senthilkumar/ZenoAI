@@ -57,6 +57,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <span className="ic">{tab.icon}</span> {tab.label}
           </Link>
         ))}
+        <Link href="/intake" className="rail-tab" style={{ opacity: 0.85 }}>
+          <span className="ic">✎</span> Retake Intake
+        </Link>
         <div className="rail-foot">
           Academic <span style={{ color: "var(--indigo)" }}>■</span> ·
           Career <span style={{ color: "var(--amber)" }}>■</span>

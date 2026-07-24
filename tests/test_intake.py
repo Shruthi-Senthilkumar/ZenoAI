@@ -1,8 +1,17 @@
 import pytest
 
+from backend.database import init_db
 from backend.logic.intake import IntakeState, db, next_intake_turn
 from backend.llm.validation import LLMValidationFailed
 from backend.schemas.intake import IntakeTurnResponse
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _ensure_db_initialized():
+    # next_intake_turn now touches the real Student table on completion
+    # (extract_and_store_profile) — needs the schema to exist, same gap
+    # test_feedback.py had earlier this session.
+    init_db()
 
 
 @pytest.fixture(autouse=True)
@@ -53,6 +62,10 @@ def test_state_updates_append_answers_across_turns(monkeypatch):
 
 def test_branching_stops_when_llm_signals_done(monkeypatch):
     def fake_call_and_validate(system_prompt, user_prompt, schema):
+        if schema.__name__ == "ExtractedProfile":
+            from backend.logic.intake import ExtractedProfile
+
+            return ExtractedProfile(target_role="SDE", weekly_hours=10, timeline_months=3, education_level="Undergraduate")
         return IntakeTurnResponse(next_question=None, quick_replies=[], done=True)
 
     monkeypatch.setattr("backend.logic.intake.call_and_validate", fake_call_and_validate)
@@ -63,7 +76,6 @@ def test_branching_stops_when_llm_signals_done(monkeypatch):
     assert response.next_question is None
     state = db.get_intake_state("student-z")
     assert state.done is True
-
 
 def test_fallback_on_validation_failure_never_crashes(monkeypatch):
     def raise_validation_failed(system_prompt, user_prompt, schema):

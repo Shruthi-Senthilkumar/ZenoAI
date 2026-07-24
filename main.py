@@ -16,11 +16,13 @@ from backend.routes import (
     dashboard,
     feedback,
     intake,
+    intake_profile,
     jobs,
     leetcode,
     notifications,
     push,
     quiz,
+    resume_bullets,
     roadmap,
     struggle,
     tasks,
@@ -52,7 +54,8 @@ app.include_router(chat.router)
 app.include_router(leetcode.router)
 app.include_router(jobs.router)
 app.include_router(auth.router)
-
+app.include_router(intake_profile.router)
+app.include_router(resume_bullets.router)
 
 async def github_poll_loop():
     """Daily GitHub activity poll, runs inside the FastAPI process

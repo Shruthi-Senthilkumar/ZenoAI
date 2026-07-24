@@ -110,6 +110,9 @@ export interface ResumeBullet {
 export interface IntakeProfile {
   targetRole: string;
   weeklyHours: number;
+  timelineMonths: number;
+  educationLevel: string;
+  topicLevels: Record<string, string>;
 }
 
 // ---- NOT YET LIVE: no backend route exists for any of the below. Shapes
