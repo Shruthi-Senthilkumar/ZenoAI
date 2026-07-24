@@ -64,7 +64,6 @@ async def github_poll_loop():
             print(f"Error in github_poll_loop: {e}")
         await asyncio.sleep(86400)
 
-
 @app.on_event("startup")
 async def start_background_loops():
     try:
@@ -72,9 +71,21 @@ async def start_background_loops():
         data = generate_history()
         write_fixtures(data)
         seed_db(data)
+        # Shruthi's logic-layer stubs (readiness/roadmap/streak/
+        # struggle_detector/notifications) all key their fixture data to
+        # "student-1" — a legacy ID from before Subhiksha's real Student
+        # table existed, never reconciled with her student_a/b/c seed.
+        # Real DB-backed routes (GitHub OAuth's callback, most visibly)
+        # only recognize rows that actually exist, so "student-1" 404s
+        # there with no matching student. Ensuring the row exists in both
+        # places is far less invasive than rekeying five stub files under
+        # demo time pressure — revisit properly post-hackathon.
+        from backend.database import create_or_update_student
+        create_or_update_student(student_id="student-1", name="Demo Student", github_username="student-1_dev")
     except Exception as e:
         print(f"Startup DB init notice: {e}")
     asyncio.create_task(github_poll_loop())
+
 
 
 @app.get("/")

@@ -61,19 +61,19 @@ export default function GoalsPage() {
       <div className="section-label">Goal &amp; resume progress</div>
 
       {githubParam === "connected" && (
-        <div className="toast" style={{ position: "static", marginBottom: 16 }}>
-          GitHub connected — commit activity will feed your career readiness.
-        </div>
+        <div className="notif-banner milestone" style={{ marginBottom: 16 }}>
+    	GitHub connected — commit activity will feed your career readiness.
+  	</div>
       )}
       {githubParam === "exchange_failed" && (
-        <div className="toast" style={{ position: "static", marginBottom: 16 }}>
-          GitHub connection failed — please try again.
-        </div>
+        <div className="notif-banner offline" style={{ marginBottom: 16 }}>
+    	GitHub connection failed — please try again.
+   	</div>
       )}
       {githubParam === "state_mismatch" && (
-        <div className="toast" style={{ position: "static", marginBottom: 16 }}>
-          That connection link expired — please try again.
-        </div>
+        <div className="notif-banner offline" style={{ marginBottom: 16 }}>
+    	That connection link expired — please try again.
+  	</div>
       )}
 
       <div className="panel career" style={{ marginBottom: 20 }}>
